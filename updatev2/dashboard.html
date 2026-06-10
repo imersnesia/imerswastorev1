@@ -1,1 +1,1206 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - iMersWAstore</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .hidden-view { display: none !important; }
 
+        /* CSS Khusus Print Struk Kasir */
+        #printStrukArea { display: none; }
+        @media print {
+            body * { visibility: hidden; }
+            #printStrukArea, #printStrukArea * { visibility: visible; }
+            #printStrukArea { 
+                display: block; position: absolute; left: 0; top: 0; width: 100%; 
+                font-family: monospace; font-size: 12px; color: #000; padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased overflow-hidden flex h-screen">
+
+    <!-- CEK SESI LOGIN -->
+    <script>
+        let currentUser = null;
+        try {
+            const userSession = localStorage.getItem('iMersWA_User');
+            if (!userSession) {
+                // Cegah error redirect di environment blob/iframe (seperti Canvas preview)
+                if (window.location.protocol !== 'blob:' && window.location.protocol !== 'data:' && window.self === window.top) {
+                    window.location.replace('login.html');
+                } else {
+                    console.warn("Sesi tidak ditemukan. Menggunakan data mock admin untuk keperluan preview.");
+                    currentUser = {
+                        id: 'ADM-001',
+                        username: 'admin_demo',
+                        role: 'admin',
+                        nama_toko: 'Admin Demo (Preview)',
+                        slug_toko: 'admin-demo',
+                        status: 'approved',
+                        logo: '',
+                        wa_number: '6281234567890',
+                        auto_reply: 'Halo Kak, saya mau pesan...'
+                    };
+                }
+            } else {
+                currentUser = JSON.parse(userSession);
+            }
+        } catch (e) {
+            console.error("Error cek sesi:", e);
+        }
+
+        // URL Web App Google Apps Script lo
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwKbN_R8gdRG5_jLniXD0LXZSMTUiU8gO5Ae-s3FAnfxV7gpaRstdovRiJbS_izuZeQpw/exec';
+    </script>
+
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white border-r border-slate-200 flex flex-col h-full z-20 transition-all shrink-0">
+        <!-- Logo Brand Dinamis -->
+        <div class="h-16 flex items-center px-6 border-b border-slate-100 cursor-pointer" onclick="window.location.href='index.html'">
+            <div id="sidebarBrandLogo" class="w-8 h-8 bg-emerald-500 text-white p-1.5 rounded-lg mr-2 flex items-center justify-center overflow-hidden shrink-0">
+                <i data-lucide="store" class="w-5 h-5"></i>
+            </div>
+            <span id="sidebarBrandName" class="font-bold text-lg tracking-tight truncate">iMers<span class="text-emerald-500">WA</span></span>
+        </div>
+
+        <!-- User Info -->
+        <div class="p-5 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm uppercase overflow-hidden shrink-0" id="uiAvatar">
+                    <!-- Diisi oleh JS -->
+                </div>
+                <div class="overflow-hidden">
+                    <h3 class="font-bold text-sm truncate" id="uiTokoName">Loading...</h3>
+                    <div class="flex items-center gap-1 mt-0.5">
+                        <span id="uiRoleBadge" class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600">ROLE</span>
+                        <p class="text-xs text-slate-500 truncate" id="uiUsername">@user</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation (Diisi oleh JS) -->
+        <nav class="flex-1 px-4 py-4 space-y-1 overflow-y-auto" id="navMenu">
+            <!-- Loading placeholder -->
+        </nav>
+
+        <!-- Sidebar Footer -->
+        <div class="p-4 border-t border-slate-100 space-y-2">
+            <button id="btnLihatToko" class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-emerald-600 hover:bg-emerald-50 rounded-lg w-full transition-colors">
+                <i data-lucide="external-link" class="w-4 h-4"></i> Lihat Toko
+            </button>
+            <button onclick="doLogout()" class="flex items-center gap-3 px-3 py-2 text-sm font-medium text-red-500 hover:bg-red-50 rounded-lg w-full transition-colors">
+                <i data-lucide="log-out" class="w-4 h-4"></i> Keluar
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        <!-- Header -->
+        <header class="h-16 bg-white border-b border-slate-200 flex items-center px-8 justify-between z-10 shadow-sm shrink-0">
+            <h1 class="text-xl font-bold text-slate-800" id="pageTitle">Dashboard</h1>
+            <div class="flex items-center gap-4">
+                <span id="statusBadge" class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider hidden"></span>
+                <div class="text-sm text-slate-500 font-medium" id="headerDate">Hari Ini</div>
+            </div>
+        </header>
+
+        <!-- Container Konten yang bisa di-scroll -->
+        <div class="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50 relative">
+            
+            <!-- Global Alert Notifier -->
+            <div id="globalAlert" class="hidden mb-6 p-4 rounded-lg text-sm font-medium border"></div>
+
+            <!-- ========================================== -->
+            <!-- VIEW: DASHBOARD UTAMA -->
+            <!-- ========================================== -->
+            <div id="view-dashboard" class="view-section max-w-6xl mx-auto space-y-6">
+                <!-- Welcome Banner -->
+                <div class="bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-2xl p-6 shadow-md relative overflow-hidden text-white">
+                    <div class="absolute right-0 top-0 opacity-10"><i data-lucide="trending-up" class="w-48 h-48 -mr-10 -mt-10"></i></div>
+                    <div class="relative z-10">
+                        <h2 class="text-2xl font-bold mb-1">Selamat datang kembali, <span id="welcomeName">User</span>! 👋</h2>
+                        <p class="text-emerald-50 text-sm">Berikut adalah ringkasan aktivitas toko Anda hari ini.</p>
+                    </div>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-sm font-medium text-slate-500">Pendapatan (Total)</h3>
+                            <div class="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center"><i data-lucide="wallet" class="w-4 h-4"></i></div>
+                        </div>
+                        <div class="text-2xl font-bold text-slate-800" id="dashTotalSales">Rp 0</div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-sm font-medium text-slate-500">Total Pesanan</h3>
+                            <div class="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center"><i data-lucide="shopping-bag" class="w-4 h-4"></i></div>
+                        </div>
+                        <div class="text-2xl font-bold text-slate-800" id="dashOrderCount">0</div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-sm font-medium text-slate-500">Total Produk Katalog</h3>
+                            <div class="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center"><i data-lucide="package" class="w-4 h-4"></i></div>
+                        </div>
+                        <div class="text-2xl font-bold text-slate-800" id="dashProdCount">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- VIEW: MANAJEMEN USER (Hanya Admin/Agency)-->
+            <!-- ========================================== -->
+            <div id="view-users" class="view-section hidden max-w-6xl mx-auto space-y-6">
+                <div class="flex justify-between items-center bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-800">Manajemen Pengguna</h2>
+                        <p class="text-sm text-slate-500">Kelola akun toko di bawah jaringan Anda.</p>
+                    </div>
+                    <button onclick="openUserModal()" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors flex items-center gap-2">
+                        <i data-lucide="user-plus" class="w-4 h-4"></i> Buat Toko Baru
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+                    <table class="w-full text-left text-sm whitespace-nowrap">
+                        <thead class="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                            <tr>
+                                <th class="px-6 py-4">Toko & Info</th>
+                                <th class="px-6 py-4">Role</th>
+                                <th class="px-6 py-4">Status</th>
+                                <th class="px-6 py-4">Expired</th>
+                                <th class="px-6 py-4 text-right">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100" id="usersTableBody">
+                            <tr><td colspan="5" class="p-8 text-center text-slate-400">Loading data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- VIEW: KATALOG PRODUK -->
+            <!-- ========================================== -->
+            <div id="view-prod" class="view-section hidden max-w-6xl mx-auto space-y-6">
+                <div class="flex justify-between items-center bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-800">Katalog Produk</h2>
+                        <p class="text-sm text-slate-500">Kelola daftar produk, harga, dan stok Anda.</p>
+                    </div>
+                    <button onclick="openProductModal()" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors flex items-center gap-2">
+                        <i data-lucide="plus" class="w-4 h-4"></i> Tambah Produk
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+                    <table class="w-full text-left text-sm whitespace-nowrap">
+                        <thead class="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                            <tr>
+                                <th class="px-6 py-4">Produk</th>
+                                <th class="px-6 py-4">Harga</th>
+                                <th class="px-6 py-4">Stok</th>
+                                <th class="px-6 py-4 text-right">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100" id="productTableBody">
+                            <tr><td colspan="4" class="p-8 text-center text-slate-400">Loading data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- VIEW: PESANAN MASUK -->
+            <!-- ========================================== -->
+            <div id="view-order" class="view-section hidden max-w-6xl mx-auto space-y-6">
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <h2 class="text-xl font-bold text-slate-800 mb-1">Pesanan Masuk</h2>
+                    <p class="text-sm text-slate-500">Daftar riwayat pesanan dari Kasir POS dan Toko Online.</p>
+                </div>
+
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+                    <table class="w-full text-left text-sm whitespace-nowrap">
+                        <thead class="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                            <tr>
+                                <th class="px-6 py-4">Order ID & Waktu</th>
+                                <th class="px-6 py-4">Pelanggan</th>
+                                <th class="px-6 py-4">Rincian Barang</th>
+                                <th class="px-6 py-4">Total Tagihan</th>
+                                <th class="px-6 py-4">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100" id="orderTableBody">
+                            <tr><td colspan="5" class="p-8 text-center text-slate-400">Loading data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- VIEW: KASIR POS -->
+            <!-- ========================================== -->
+            <div id="view-pos" class="view-section hidden max-w-full h-full">
+                <div class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)]">
+                    
+                    <!-- Kiri: Grid Produk -->
+                    <div class="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                        <div class="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-3">
+                            <i data-lucide="search" class="w-5 h-5 text-slate-400"></i>
+                            <input type="text" id="posSearch" placeholder="Cari nama produk..." oninput="filterPOS()" class="w-full bg-transparent border-none focus:outline-none text-sm font-medium">
+                        </div>
+                        <div class="p-4 overflow-y-auto flex-1 bg-slate-50">
+                            <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4" id="posProductGrid">
+                                <!-- Diisi JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Kanan: Keranjang Kasir -->
+                    <div class="w-full lg:w-96 shrink-0 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col h-full">
+                        <div class="p-4 border-b border-slate-100 bg-emerald-500 text-white flex justify-between items-center rounded-t-xl">
+                            <h3 class="font-bold flex items-center gap-2"><i data-lucide="shopping-cart" class="w-5 h-5"></i> Keranjang</h3>
+                            <button onclick="clearCart()" class="text-xs bg-emerald-600 hover:bg-emerald-700 px-2 py-1 rounded transition-colors">Kosongkan</button>
+                        </div>
+                        
+                        <!-- List Item -->
+                        <div class="flex-1 overflow-y-auto p-4 space-y-3" id="cartItemList">
+                            <div class="text-center text-slate-400 text-sm mt-10">Keranjang masih kosong</div>
+                        </div>
+
+                        <!-- Summary & Checkout -->
+                        <div class="p-4 border-t border-slate-100 bg-slate-50 rounded-b-xl">
+                            <div class="flex justify-between items-center mb-4">
+                                <span class="text-slate-500 font-medium">Total Tagihan</span>
+                                <span class="text-2xl font-bold text-slate-800" id="cartTotal">Rp 0</span>
+                            </div>
+                            <!-- Panggil Checkout Modal -->
+                            <button onclick="openCheckoutModal()" class="w-full py-3 bg-slate-900 text-white font-bold rounded-lg hover:bg-slate-800 shadow-lg flex justify-center items-center gap-2 transition-all">
+                                <i data-lucide="arrow-right-circle" class="w-5 h-5"></i> Lanjut Pembayaran
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- VIEW: PENGATURAN -->
+            <!-- ========================================== -->
+            <div id="view-set" class="view-section hidden max-w-3xl mx-auto space-y-6 pb-10">
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <h2 class="text-xl font-bold text-slate-800 mb-1">Pengaturan & Profil Toko</h2>
+                    <p class="text-sm text-slate-500">Sesuaikan identitas bisnis, integrasi WhatsApp, dan metode pembayaran Anda.</p>
+                </div>
+
+                <!-- Form Profil Toko -->
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2 border-b pb-2"><i data-lucide="store" class="w-5 h-5 text-emerald-500"></i> Profil Toko & Integrasi</h3>
+                    <form id="settingForm" class="space-y-5">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Nama Toko</label>
+                                <input type="text" id="setNamaToko" required class="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Slug URL Toko</label>
+                                <div class="flex rounded-lg shadow-sm">
+                                    <span class="inline-flex items-center px-3 rounded-l-md border border-r-0 border-slate-300 bg-slate-50 text-slate-500 text-xs">toko.com/</span>
+                                    <input type="text" id="setSlugToko" required class="flex-1 min-w-0 block w-full px-3 py-2.5 rounded-none rounded-r-lg border border-slate-300 focus:outline-none focus:border-emerald-500 text-sm">
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">URL Logo Toko (Opsional)</label>
+                            <input type="url" id="setLogo" class="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500 text-sm" placeholder="https://...">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Nomor WhatsApp Penerima Order (Mulai dengan 62)</label>
+                            <input type="tel" id="setWaNumber" class="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500 text-sm" placeholder="628123456789">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Teks Sambutan Auto-Reply WhatsApp</label>
+                            <textarea id="setAutoReply" rows="2" class="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500 text-sm"></textarea>
+                        </div>
+                        
+                        <!-- Penambahan Form QRIS & API -->
+                        <h4 class="font-bold text-slate-700 mt-6 border-b pb-1">Integrasi Pembayaran & API Fonnte</h4>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">URL Gambar QRIS Statis (Opsional)</label>
+                            <input type="url" id="setQris" class="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500 text-sm" placeholder="https://link-gambar-qris-anda">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Info Transfer Bank Manual (Opsional)</label>
+                            <input type="text" id="setBank" class="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500 text-sm" placeholder="BCA 12345678 a/n Budi">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-emerald-600 mb-1">Fonnte API Token (Untuk Notif WA Otomatis Kasir)</label>
+                            <input type="text" id="setFonnte" class="w-full px-4 py-2.5 border border-emerald-200 rounded-lg focus:outline-none focus:border-emerald-500 text-sm" placeholder="Kosongkan jika tidak pakai">
+                            <p class="text-[10px] text-slate-500 mt-1">Dapatkan token di fonnte.com. Jika diisi, struk pembayaran POS akan dikirim otomatis ke WA pembeli.</p>
+                        </div>
+
+                        <div class="pt-2">
+                            <button type="submit" id="btnSaveSet" class="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-colors flex items-center w-full justify-center">
+                                <span id="btnSaveSetText">Simpan Pengaturan</span>
+                                <i data-lucide="loader-2" id="btnSaveSetLoader" class="w-4 h-4 ml-2 animate-spin hidden"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Form Ganti Password -->
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2 border-b pb-2"><i data-lucide="lock" class="w-5 h-5 text-slate-500"></i> Ganti Password</h3>
+                    <form id="passwordForm" class="space-y-4 max-w-sm">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Password Lama</label>
+                            <input type="password" id="oldPass" required class="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-500 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Password Baru</label>
+                            <input type="password" id="newPass" required class="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-500 text-sm">
+                        </div>
+                        <div class="pt-2">
+                            <button type="submit" id="btnSavePass" class="bg-slate-800 hover:bg-slate-900 text-white px-6 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-colors flex items-center">
+                                <span id="btnSavePassText">Update Password</span>
+                                <i data-lucide="loader-2" id="btnSavePassLoader" class="w-4 h-4 ml-2 animate-spin hidden"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- ========================================== -->
+    <!-- MODALS SECTION -->
+    <!-- ========================================== -->
+    
+    <!-- Modal Add/Edit Product (Dengan Fitur Satuan & Deskripsi) -->
+    <div id="productModal" class="fixed inset-0 z-[100] hidden">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeModal('productModal')"></div>
+        <div class="flex items-center justify-center min-h-screen px-4 py-8">
+            <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden z-10">
+                <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                    <h3 class="font-bold text-slate-800" id="productModalTitle">Tambah Produk Baru</h3>
+                    <button onclick="closeModal('productModal')" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+                <form id="productForm" class="p-6 space-y-4">
+                    <input type="hidden" id="prodId" value="">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Nama Produk</label>
+                        <input type="text" id="prodName" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-emerald-500 text-sm">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Harga (Rp)</label>
+                            <input type="number" id="prodPrice" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-emerald-500 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Stok</label>
+                            <input type="number" id="prodStock" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-emerald-500 text-sm">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Satuan Produk</label>
+                            <select id="prodSatuan" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-emerald-500 text-sm bg-white">
+                                <option value="pcs">Pcs</option>
+                                <option value="pack">Pack</option>
+                                <option value="box">Box</option>
+                                <option value="kg">Kg</option>
+                                <option value="porsi">Porsi</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">URL Gambar</label>
+                            <input type="url" id="prodImg" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-emerald-500 text-sm" placeholder="https://...">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Deskripsi Singkat (Opsional)</label>
+                        <textarea id="prodDesc" rows="2" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-emerald-500 text-sm" placeholder="Deskripsi untuk pembeli..."></textarea>
+                    </div>
+                    <button type="submit" id="btnSaveProd" class="w-full py-3 bg-emerald-500 text-white font-bold rounded-lg mt-2 flex justify-center items-center transition-colors hover:bg-emerald-600">
+                        <span id="btnSaveProdText">Simpan Produk</span>
+                        <i data-lucide="loader-2" id="btnSaveProdLoader" class="w-4 h-4 ml-2 animate-spin hidden"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Checkout Kasir POS (Pilih Pembayaran & Kembalian) -->
+    <div id="checkoutModal" class="fixed inset-0 z-[100] hidden">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeModal('checkoutModal')"></div>
+        <div class="flex items-center justify-center min-h-screen px-4 py-8">
+            <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden z-10 p-6 space-y-5">
+                <div class="flex justify-between items-center border-b pb-3">
+                    <h3 class="font-bold text-xl text-slate-800">Selesaikan Pembayaran</h3>
+                    <button onclick="closeModal('checkoutModal')" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+                
+                <div class="bg-slate-50 p-4 rounded-xl text-center border border-slate-100">
+                    <p class="text-xs text-slate-500 uppercase tracking-widest font-bold">Total Tagihan</p>
+                    <div class="text-3xl font-black text-slate-800" id="coTotalTagihan">Rp 0</div>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-1">Nama Pembeli (Opsional)</label>
+                        <input type="text" id="coNama" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500 text-sm" placeholder="Bapak/Ibu Budi">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-emerald-600 mb-1">No WA Pembeli (Untuk Struk Online)</label>
+                        <input type="tel" id="coWa" class="w-full px-3 py-2 border border-emerald-200 rounded-lg focus:outline-none focus:border-emerald-500 text-sm" placeholder="6281234...">
+                        <p class="text-[10px] text-slate-500 mt-0.5">Jika Anda mengatur Fonnte Token, nota dikirim via WhatsApp otomatis.</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-1">Metode Pembayaran</label>
+                        <select id="coMethod" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500 text-sm font-bold bg-white" onchange="toggleKembalian()">
+                            <option value="Cash">Tunai (Bayar di Kasir)</option>
+                            <option value="QRIS">QRIS</option>
+                            <option value="Transfer">Transfer Bank</option>
+                        </select>
+                    </div>
+
+                    <!-- Area Kalkulator Kasir -->
+                    <div id="cashArea" class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <label class="block text-sm font-bold text-slate-700 mb-1">Uang Diterima (Rp)</label>
+                        <input type="number" id="coUangDiterima" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-lg font-bold focus:outline-none focus:border-emerald-500" oninput="hitungKembalian()">
+                        <div class="flex justify-between items-center mt-3 pt-3 border-t border-slate-200">
+                            <span class="text-sm font-bold text-slate-500">Kembalian:</span>
+                            <span class="text-xl font-black text-emerald-600" id="coKembalian">Rp 0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="submitCheckout()" id="btnSubmitCheckout" class="w-full py-3.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl mt-2 flex justify-center items-center shadow-lg transition-all">
+                    <i data-lucide="check-circle" class="w-5 h-5 mr-2"></i> Konfirmasi & Cetak Struk
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Add/Edit User (Admin/Agency Only) -->
+    <div id="userModal" class="fixed inset-0 z-[100] hidden">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeModal('userModal')"></div>
+        <div class="flex items-center justify-center min-h-screen px-4 py-8">
+            <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden z-10">
+                <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                    <h3 class="font-bold text-slate-800" id="userModalTitle">Buat Toko Baru</h3>
+                    <button onclick="closeModal('userModal')" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+                <form id="userForm" class="p-6 space-y-4">
+                    <input type="hidden" id="usrId" value="">
+                    
+                    <div id="pwdContainer">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Password Awal (Khusus buat baru)</label>
+                        <input type="password" id="usrPwd" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-emerald-500 text-sm mb-3">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Username</label>
+                            <input type="text" id="usrUsername" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-emerald-500 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                            <input type="email" id="usrEmail" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-emerald-500 text-sm">
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Nama Toko</label>
+                            <input type="text" id="usrNamaToko" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-emerald-500 text-sm">
+                        </div>
+                        <div id="slugContainer" class="hidden">
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Slug URL</label>
+                            <input type="text" id="usrSlugToko" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-emerald-500 text-sm">
+                        </div>
+                    </div>
+
+                    <div id="editExtraContainer" class="hidden grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg border">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Status</label>
+                            <select id="usrStatus" class="w-full px-2 py-1.5 border rounded focus:outline-none text-sm">
+                                <option value="approved">Approved</option>
+                                <option value="pending">Pending</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Expired At (yyyy-mm-dd)</label>
+                            <input type="text" id="usrExpired" placeholder="2026-12-31" class="w-full px-2 py-1.5 border rounded focus:outline-none text-sm">
+                        </div>
+                    </div>
+
+                    <button type="submit" id="btnSaveUser" class="w-full py-3 bg-emerald-500 text-white font-bold rounded-lg mt-4 flex justify-center items-center transition-colors hover:bg-emerald-600">
+                        <span id="btnSaveUserText">Simpan User</span>
+                        <i data-lucide="loader-2" id="btnSaveUserLoader" class="w-4 h-4 ml-2 animate-spin hidden"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- STRUK PRINT AREA (Tersembunyi, hanya muncul saat diprint) -->
+    <div id="printStrukArea">
+        <center>
+            <h2 id="strNamaToko" style="margin:0; font-size: 16px;">NAMA TOKO</h2>
+            <p id="strInfoToko" style="margin:0; font-size: 10px;"></p>
+            <p style="margin:5px 0;">================================</p>
+        </center>
+        <p style="margin:0;">No Order : <span id="strOrderId"></span></p>
+        <p style="margin:0;">Tgl      : <span id="strDate"></span></p>
+        <p style="margin:0;">Kasir    : <span id="strKasir"></span></p>
+        <p style="margin:0;">Pelanggan: <span id="strPelanggan"></span></p>
+        <p style="margin:5px 0;">================================</p>
+        <div id="strItems"></div>
+        <p style="margin:5px 0;">--------------------------------</p>
+        <p style="margin:0; font-weight:bold; display:flex; justify-content:space-between;"><span>TOTAL</span> <span id="strTotal"></span></p>
+        <p style="margin:0; display:flex; justify-content:space-between;"><span>Metode</span> <span id="strMethod"></span></p>
+        <p style="margin:0; display:flex; justify-content:space-between;"><span>Tunai</span> <span id="strTunai"></span></p>
+        <p style="margin:0; display:flex; justify-content:space-between;"><span>Kembali</span> <span id="strKembali"></span></p>
+        <p style="margin:5px 0;">================================</p>
+        <center><p style="margin:0;">Terima Kasih Atas Kunjungan Anda!</p></center>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- JAVASCRIPT LOGIC -->
+    <!-- ========================================== -->
+    <script>
+        lucide.createIcons();
+        const formatRupiah = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
+        
+        let globalProducts = [];
+        let globalOrders = [];
+        let globalUsers = [];
+        let cart = [];
+        let totalCartValue = 0;
+
+        // --- 1. INISIALISASI UI BERDASARKAN SESSION ---
+        function initApp() {
+            if (!currentUser) return; // Mencegah error jika belum login
+            
+            // Header Info & Sidebar Brand (Dinamis sesuai profil toko user)
+            document.getElementById('headerDate').innerText = new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            document.getElementById('uiTokoName').innerText = currentUser.nama_toko || 'Nama Toko';
+            document.getElementById('uiUsername').innerText = '@' + currentUser.username;
+            document.getElementById('welcomeName').innerText = currentUser.username;
+            document.getElementById('uiRoleBadge').innerText = currentUser.role;
+
+            // Set Brand Info di pojok kiri atas
+            const sidebarBrandNameEl = document.getElementById('sidebarBrandName');
+            const sidebarBrandLogoEl = document.getElementById('sidebarBrandLogo');
+            sidebarBrandNameEl.innerText = currentUser.nama_toko || 'iMersWAstore';
+
+            if (currentUser.logo && currentUser.logo !== '') {
+                sidebarBrandLogoEl.innerHTML = `<img src="${currentUser.logo}" class="w-full h-full object-cover">`;
+                sidebarBrandLogoEl.classList.remove('p-1.5', 'bg-emerald-500'); 
+            } else {
+                sidebarBrandLogoEl.innerHTML = `<i data-lucide="store" class="w-5 h-5 text-white"></i>`;
+                sidebarBrandLogoEl.classList.add('p-1.5', 'bg-emerald-500');
+            }
+
+            // Atur Avatar Info
+            const avatarEl = document.getElementById('uiAvatar');
+            if (currentUser.logo && currentUser.logo !== '') {
+                avatarEl.innerHTML = `<img src="${currentUser.logo}" class="w-full h-full object-cover">`;
+            } else {
+                avatarEl.innerHTML = (currentUser.nama_toko || 'U').charAt(0);
+            }
+
+            // Atur Status Badge & Link Toko
+            const badge = document.getElementById('statusBadge');
+            badge.classList.remove('hidden');
+            if(currentUser.status === 'approved') {
+                badge.innerText = 'Toko Aktif'; badge.classList.add('bg-green-100', 'text-green-700');
+            } else {
+                badge.innerText = 'Pending'; badge.classList.add('bg-amber-100', 'text-amber-700');
+            }
+
+            document.getElementById('btnLihatToko').onclick = () => {
+                // Dinamis sesuai domain instalasi/hosting saat ini
+                window.open(window.location.origin + '/' + currentUser.slug_toko, '_blank');
+            };
+
+            // Setup Navigation Menu (Role Based)
+            const navMenu = document.getElementById('navMenu');
+            let menus = createMenuHTML('dashboard', 'layout-dashboard', 'Dashboard');
+            if (currentUser.role === 'admin' || currentUser.role === 'agency') {
+                menus += createMenuHTML('users', 'users', 'Manajemen User');
+            }
+            menus += createMenuHTML('prod', 'package', 'Katalog Produk');
+            menus += createMenuHTML('order', 'shopping-cart', 'Pesanan Masuk');
+            menus += createMenuHTML('pos', 'calculator', 'Kasir POS');
+            menus += createMenuHTML('set', 'settings', 'Pengaturan');
+            
+            navMenu.innerHTML = menus;
+            switchView('dashboard');
+            lucide.createIcons();
+
+            // Isi nilai default form Setting
+            document.getElementById('setNamaToko').value = currentUser.nama_toko || '';
+            document.getElementById('setSlugToko').value = currentUser.slug_toko || '';
+            document.getElementById('setLogo').value = currentUser.logo || '';
+            document.getElementById('setWaNumber').value = currentUser.wa_number || '';
+            document.getElementById('setAutoReply').value = currentUser.auto_reply || '';
+            document.getElementById('setQris').value = currentUser.qris_url || '';
+            document.getElementById('setBank').value = currentUser.bank_info || '';
+            document.getElementById('setFonnte').value = currentUser.fonnte_token || '';
+
+            // Fetch Data dari API
+            fetchDashboardData();
+            if(currentUser.role === 'admin' || currentUser.role === 'agency') fetchUsersData();
+        }
+
+        function createMenuHTML(id, icon, text) {
+            return `<button onclick="switchView('${id}')" id="menu-${id}" class="menu-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium w-full text-left transition-colors text-slate-600 hover:bg-slate-100">
+                        <i data-lucide="${icon}" class="w-5 h-5"></i> ${text}
+                    </button>`;
+        }
+
+        function switchView(viewId) {
+            // Sembunyikan semua section view
+            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+            
+            // Tampilkan view yang dituju
+            const target = document.getElementById('view-' + viewId);
+            if(target) target.classList.remove('hidden');
+
+            // Atur status aktif pada menu sidebar
+            document.querySelectorAll('.menu-item').forEach(el => {
+                el.classList.remove('bg-emerald-50', 'text-emerald-600');
+                el.classList.add('text-slate-600');
+            });
+            const activeMenu = document.getElementById('menu-' + viewId);
+            if(activeMenu) {
+                activeMenu.classList.remove('text-slate-600');
+                activeMenu.classList.add('bg-emerald-50', 'text-emerald-600');
+                document.getElementById('pageTitle').innerText = activeMenu.innerText.trim();
+            }
+        }
+
+        function showGlobalAlert(msg, isSuccess = true) {
+            const al = document.getElementById('globalAlert');
+            al.innerText = msg;
+            al.className = `mb-6 p-4 rounded-lg text-sm font-medium border ${isSuccess ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`;
+            al.classList.remove('hidden');
+            setTimeout(() => al.classList.add('hidden'), 4000);
+        }
+
+        function doLogout() {
+            localStorage.removeItem('iMersWA_User');
+            window.location.href = 'login.html';
+        }
+
+        // --- 2. FUNGSI API CORE ---
+        async function apiCall(action, paramsObj = {}) {
+            const formData = new FormData();
+            formData.append('action', action);
+            for (const key in paramsObj) formData.append(key, paramsObj[key]);
+            
+            try {
+                const res = await fetch(SCRIPT_URL, { method: 'POST', body: formData });
+                return await res.json();
+            } catch (err) {
+                console.error("API Error:", err);
+                return { success: false, message: "Koneksi terputus. Silakan coba lagi." };
+            }
+        }
+
+        // --- 3. FETCH & RENDER DATA ---
+        async function fetchDashboardData() {
+            if(!currentUser) return;
+            // Get Products
+            const resProd = await apiCall('get_products', { id_user_toko: currentUser.id });
+            if(resProd.success) {
+                globalProducts = resProd.data;
+                renderProducts();
+                renderPOSGrid(globalProducts);
+                document.getElementById('dashProdCount').innerText = globalProducts.length;
+            }
+
+            // Get Orders
+            const resOrder = await apiCall('get_orders', { id_user_toko: currentUser.id });
+            if(resOrder.success) {
+                globalOrders = resOrder.data;
+                renderOrders();
+                document.getElementById('dashOrderCount').innerText = globalOrders.length;
+                const totalIncome = globalOrders.reduce((sum, ord) => sum + parseInt(ord.total || 0), 0);
+                document.getElementById('dashTotalSales').innerText = formatRupiah(totalIncome);
+            }
+        }
+
+        async function fetchUsersData() {
+            if(!currentUser) return;
+            const resUsers = await apiCall('get_users', { requestor_id: currentUser.id, requestor_role: currentUser.role });
+            if(resUsers.success) {
+                globalUsers = resUsers.data;
+                renderUsers();
+            }
+        }
+
+        // Render Produk (Tabel)
+        function renderProducts() {
+            const tbody = document.getElementById('productTableBody');
+            if(globalProducts.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-slate-500">Belum ada produk. Tambahkan sekarang!</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = globalProducts.map(p => `
+                <tr class="hover:bg-slate-50 border-b border-slate-100">
+                    <td class="px-6 py-4 flex items-center gap-3">
+                        <img src="${p.img || 'https://placehold.co/100x100/e2e8f0/64748b?text=Box'}" class="w-10 h-10 rounded-lg object-cover">
+                        <div>
+                            <div class="font-bold text-slate-800">${p.name}</div>
+                            <div class="text-[10px] text-slate-400 w-48 truncate">${p.desc || '-'}</div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="font-bold text-slate-700">${formatRupiah(p.price)}</span>
+                        <span class="text-xs text-slate-400 font-normal"> /${p.unit}</span>
+                    </td>
+                    <td class="px-6 py-4"><span class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold">${p.stock} pcs</span></td>
+                    <td class="px-6 py-4 text-right">
+                        <button onclick="openProductModal('${p.id}')" class="text-blue-500 hover:text-blue-700 text-sm font-medium mr-3">Edit</button>
+                        <button onclick="deleteProduct('${p.id}')" class="text-red-500 hover:text-red-700 text-sm font-medium">Hapus</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Render Orders
+        function renderOrders() {
+            const tbody = document.getElementById('orderTableBody');
+            if(globalOrders.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-500">Belum ada pesanan masuk.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = globalOrders.map(o => {
+                let statusColor = o.status === 'Selesai' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700';
+                let dateStr = new Date(o.time).toLocaleString('id-ID');
+                
+                let itemsList = '';
+                try { itemsList = JSON.parse(o.items).join(', '); } 
+                catch(e) { itemsList = o.items; }
+
+                return `
+                <tr class="hover:bg-slate-50 border-b border-slate-100">
+                    <td class="px-6 py-4">
+                        <div class="font-mono text-xs font-bold text-slate-800">${o.id}</div>
+                        <div class="text-[10px] text-slate-500">${dateStr}</div>
+                    </td>
+                    <td class="px-6 py-4 font-medium text-slate-700">
+                        ${o.buyer || 'Walk-in Customer'}
+                        <div class="text-[9px] text-slate-400">${o.wa || '-'}</div>
+                    </td>
+                    <td class="px-6 py-4 text-xs text-slate-500 truncate max-w-[200px]">${itemsList}</td>
+                    <td class="px-6 py-4">
+                        <div class="font-bold text-slate-800">${formatRupiah(o.total)}</div>
+                        <div class="text-[9px] text-slate-400 font-bold uppercase">${o.method || 'Cash'}</div>
+                    </td>
+                    <td class="px-6 py-4"><span class="${statusColor} px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">${o.status}</span></td>
+                </tr>
+            `}).join('');
+        }
+
+        // Render Users (Admin/Agency Only)
+        function renderUsers() {
+            const tbody = document.getElementById('usersTableBody');
+            if(globalUsers.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-500">Tidak ada data pengguna</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = globalUsers.map(u => {
+                let statusUI = u.status === 'approved' ? `<span class="text-green-600 bg-green-50 px-2 py-1 rounded text-xs font-bold">Approved</span>` : `<span class="text-amber-600 bg-amber-50 px-2 py-1 rounded text-xs font-bold">Pending</span>`;
+                let expDate = new Date(u.expired_at).toLocaleDateString('id-ID');
+                let isExpired = new Date() > new Date(u.expired_at) ? '<span class="text-red-500 text-xs ml-1">(Habis)</span>' : '';
+                
+                let actionBtns = `<button onclick="openUserModal('${u.id}')" class="text-blue-500 hover:text-blue-700 text-xs font-medium mr-2">Edit</button>
+                                  <button onclick="deleteUser('${u.id}')" class="text-red-500 hover:text-red-700 text-xs font-medium">Hapus</button>`;
+                
+                if(u.status === 'pending') {
+                    actionBtns = `<button onclick="approveUser('${u.id}')" class="text-emerald-600 hover:text-emerald-800 font-bold text-xs mr-3">✓ Approve</button>` + actionBtns;
+                }
+
+                return `
+                <tr class="hover:bg-slate-50 border-b border-slate-50">
+                    <td class="px-6 py-3">
+                        <div class="font-bold text-slate-800">${u.nama_toko} <span class="font-normal text-xs text-slate-500">(@${u.username})</span></div>
+                        <div class="text-xs text-slate-500 font-mono">${u.id} | ${u.wa_number}</div>
+                    </td>
+                    <td class="px-6 py-3"><span class="px-2 py-1 bg-slate-100 rounded text-[10px] font-bold uppercase tracking-wider">${u.role}</span></td>
+                    <td class="px-6 py-3">${statusUI}</td>
+                    <td class="px-6 py-3 text-xs font-medium">${expDate} ${isExpired}</td>
+                    <td class="px-6 py-3 text-right">${actionBtns}</td>
+                </tr>
+            `}).join('');
+        }
+
+        // --- 4. CRUD PRODUCT LOGIC ---
+        function openProductModal(id = null) {
+            const form = document.getElementById('productForm');
+            form.reset();
+            document.getElementById('prodId').value = '';
+            document.getElementById('productModalTitle').innerText = 'Tambah Produk Baru';
+
+            if(id) {
+                const p = globalProducts.find(x => x.id === id);
+                if(p) {
+                    document.getElementById('productModalTitle').innerText = 'Edit Produk';
+                    document.getElementById('prodId').value = p.id;
+                    document.getElementById('prodName').value = p.name;
+                    document.getElementById('prodPrice').value = p.price;
+                    document.getElementById('prodStock').value = p.stock;
+                    document.getElementById('prodSatuan').value = p.unit || 'pcs';
+                    document.getElementById('prodImg').value = p.img;
+                    document.getElementById('prodDesc').value = p.desc || '';
+                }
+            }
+            document.getElementById('productModal').classList.remove('hidden');
+        }
+
+        document.getElementById('productForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btnText = document.getElementById('btnSaveProdText');
+            const btnLoader = document.getElementById('btnSaveProdLoader');
+            btnText.innerText = "Menyimpan..."; btnLoader.classList.remove('hidden');
+
+            const isEdit = document.getElementById('prodId').value !== '';
+            const action = isEdit ? 'edit_product' : 'add_product';
+            
+            const payload = {
+                id_user_toko: currentUser.id,
+                nama_produk: document.getElementById('prodName').value,
+                harga: document.getElementById('prodPrice').value,
+                stok: document.getElementById('prodStock').value,
+                satuan: document.getElementById('prodSatuan').value,
+                gambar: document.getElementById('prodImg').value,
+                deskripsi: document.getElementById('prodDesc').value
+            };
+            if(isEdit) payload.id_produk = document.getElementById('prodId').value;
+
+            const res = await apiCall(action, payload);
+            
+            btnText.innerText = "Simpan Produk"; btnLoader.classList.add('hidden');
+            if(res.success) {
+                closeModal('productModal');
+                showGlobalAlert(res.message, true);
+                fetchDashboardData();
+            } else {
+                alert(res.message);
+            }
+        });
+
+        async function deleteProduct(id) {
+            if(!confirm('Yakin hapus produk ini?')) return;
+            const res = await apiCall('delete_product', { id_produk: id, id_user_toko: currentUser.id });
+            if(res.success) {
+                showGlobalAlert('Produk dihapus', true);
+                fetchDashboardData();
+            } else alert(res.message);
+        }
+
+        // --- 5. CRUD USER LOGIC (Admin/Agency) ---
+        function openUserModal(id = null) {
+            const form = document.getElementById('userForm');
+            form.reset();
+            document.getElementById('usrId').value = '';
+            document.getElementById('userModalTitle').innerText = 'Buat Toko Baru';
+            document.getElementById('pwdContainer').classList.remove('hidden');
+            document.getElementById('slugContainer').classList.add('hidden');
+            document.getElementById('editExtraContainer').classList.add('hidden');
+            document.getElementById('usrPwd').setAttribute('required', 'true');
+
+            if(id) {
+                const u = globalUsers.find(x => x.id === id);
+                if(u) {
+                    document.getElementById('userModalTitle').innerText = 'Edit Toko';
+                    document.getElementById('usrId').value = u.id;
+                    document.getElementById('usrUsername').value = u.username;
+                    document.getElementById('usrEmail').value = u.email;
+                    document.getElementById('usrNamaToko').value = u.nama_toko;
+                    document.getElementById('usrSlugToko').value = u.slug_toko;
+                    document.getElementById('usrStatus').value = u.status;
+                    
+                    let d = new Date(u.expired_at);
+                    let formattedD = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0') + "-" + String(d.getDate()).padStart(2,'0');
+                    document.getElementById('usrExpired').value = formattedD;
+
+                    document.getElementById('pwdContainer').classList.add('hidden');
+                    document.getElementById('usrPwd').removeAttribute('required');
+                    document.getElementById('slugContainer').classList.remove('hidden');
+                    document.getElementById('editExtraContainer').classList.remove('hidden');
+                    document.getElementById('editExtraContainer').classList.add('grid');
+                }
+            }
+            document.getElementById('userModal').classList.remove('hidden');
+        }
+
+        document.getElementById('userForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btnText = document.getElementById('btnSaveUserText');
+            const btnLoader = document.getElementById('btnSaveUserLoader');
+            btnText.innerText = "Memproses..."; btnLoader.classList.remove('hidden');
+
+            const isEdit = document.getElementById('usrId').value !== '';
+            let action, payload;
+
+            if (isEdit) {
+                action = 'edit_user';
+                payload = {
+                    target_user_id: document.getElementById('usrId').value,
+                    edit_username: document.getElementById('usrUsername').value,
+                    edit_email: document.getElementById('usrEmail').value,
+                    edit_nama_toko: document.getElementById('usrNamaToko').value,
+                    edit_slug_toko: document.getElementById('usrSlugToko').value,
+                    edit_status: document.getElementById('usrStatus').value,
+                    edit_expired_at: document.getElementById('usrExpired').value
+                };
+            } else {
+                action = 'create_account';
+                payload = {
+                    is_self_register: 'false',
+                    creator_role: currentUser.role,
+                    creator_id: currentUser.id, 
+                    new_role: 'user', 
+                    new_username: document.getElementById('usrUsername').value,
+                    new_password: document.getElementById('usrPwd').value,
+                    email: document.getElementById('usrEmail').value,
+                    nama_toko: document.getElementById('usrNamaToko').value
+                };
+            }
+
+            const res = await apiCall(action, payload);
+            btnText.innerText = "Simpan User"; btnLoader.classList.add('hidden');
+            
+            if(res.success) {
+                closeModal('userModal');
+                showGlobalAlert(res.message, true);
+                fetchUsersData();
+            } else alert(res.message);
+        });
+
+        async function approveUser(id) {
+            const res = await apiCall('approve_user', { target_user_id: id });
+            if(res.success) fetchUsersData(); else alert(res.message);
+        }
+
+        async function deleteUser(id) {
+            if(!confirm("Yakin hapus toko/user ini secara permanen?")) return;
+            const res = await apiCall('delete_user', { target_user_id: id });
+            if(res.success) fetchUsersData(); else alert(res.message);
+        }
+
+        // --- 6. SETTINGS & PASSWORD LOGIC ---
+        document.getElementById('settingForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('btnSaveSetText');
+            const loader = document.getElementById('btnSaveSetLoader');
+            btn.innerText = "Menyimpan..."; loader.classList.remove('hidden');
+
+            const payload = {
+                id_user_toko: currentUser.id,
+                nama_toko: document.getElementById('setNamaToko').value,
+                slug_toko: document.getElementById('setSlugToko').value,
+                logo: document.getElementById('setLogo').value,
+                wa_number: document.getElementById('setWaNumber').value,
+                auto_reply: document.getElementById('setAutoReply').value,
+                qris_url: document.getElementById('setQris').value,
+                bank_info: document.getElementById('setBank').value,
+                fonnte_token: document.getElementById('setFonnte').value
+            };
+
+            const res = await apiCall('update_store_settings', payload);
+            btn.innerText = "Simpan Pengaturan"; loader.classList.add('hidden');
+
+            if(res.success) {
+                showGlobalAlert("Pengaturan berhasil disimpan!", true);
+                currentUser = { ...currentUser, ...payload };
+                localStorage.setItem('iMersWA_User', JSON.stringify(currentUser));
+                initApp(); 
+            } else {
+                alert(res.message);
+            }
+        });
+
+        document.getElementById('passwordForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('btnSavePassText');
+            const loader = document.getElementById('btnSavePassLoader');
+            btn.innerText = "Memproses..."; loader.classList.remove('hidden');
+
+            const res = await apiCall('change_password', {
+                id_user_toko: currentUser.id,
+                old_password: document.getElementById('oldPass').value,
+                new_password: document.getElementById('newPass').value
+            });
+
+            btn.innerText = "Update Password"; loader.classList.add('hidden');
+            if(res.success) {
+                showGlobalAlert(res.message, true);
+                document.getElementById('passwordForm').reset();
+            } else {
+                alert(res.message);
+            }
+        });
+
+        // --- 7. KASIR POS LOGIC ---
+        function filterPOS() {
+            const query = document.getElementById('posSearch').value.toLowerCase();
+            const filtered = globalProducts.filter(p => p.name.toLowerCase().includes(query));
+            renderPOSGrid(filtered);
+        }
+
+        function renderPOSGrid(productsList) {
+            const grid = document.getElementById('posProductGrid');
+            if(productsList.length === 0) {
+                grid.innerHTML = `<div class="col-span-full text-center text-slate-400 py-10 text-sm">Produk tidak ditemukan.</div>`;
+                return;
+            }
+            grid.innerHTML = productsList.map(p => `
+                <div onclick="addToCart('${p.id}')" class="bg-white border border-slate-200 rounded-xl p-3 cursor-pointer hover:border-emerald-500 hover:shadow-md transition-all group">
+                    <div class="h-24 w-full bg-slate-100 rounded-lg mb-2 overflow-hidden">
+                        <img src="${p.img || 'https://placehold.co/100x100/e2e8f0/64748b?text=Box'}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300">
+                    </div>
+                    <h4 class="font-bold text-slate-800 text-xs sm:text-sm line-clamp-2 leading-tight">${p.name}</h4>
+                    <p class="text-emerald-600 font-bold text-sm mt-1">${formatRupiah(p.price)}</p>
+                </div>
+            `).join('');
+        }
+
+        function addToCart(id) {
+            const product = globalProducts.find(p => p.id === id);
+            if(!product) return;
+            const existing = cart.find(c => c.id === id);
+            if (existing) existing.qty += 1;
+            else cart.push({ ...product, qty: 1 });
+            renderCart();
+        }
+
+        function renderCart() {
+            const list = document.getElementById('cartItemList');
+            totalCartValue = 0;
+            if(cart.length === 0) {
+                list.innerHTML = '<div class="text-center text-slate-400 text-sm mt-10">Keranjang masih kosong</div>';
+                document.getElementById('cartTotal').innerText = 'Rp 0';
+                return;
+            }
+            list.innerHTML = cart.map((item, index) => {
+                const sub = item.price * item.qty;
+                totalCartValue += sub;
+                return `
+                <div class="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-100 shadow-sm relative group">
+                    <div class="flex-1 pr-4">
+                        <h4 class="text-xs font-bold text-slate-800 line-clamp-1">${item.name}</h4>
+                        <p class="text-[10px] text-slate-500">${formatRupiah(item.price)} x ${item.qty} ${item.unit}</p>
+                    </div>
+                    <div class="text-right shrink-0">
+                        <p class="text-xs font-bold text-slate-800 mb-1">${formatRupiah(sub)}</p>
+                        <button onclick="cart.splice(${index},1); renderCart()" class="text-[10px] bg-red-50 text-red-500 hover:bg-red-100 px-2 py-0.5 rounded">Hapus</button>
+                    </div>
+                </div>
+            `}).join('');
+            document.getElementById('cartTotal').innerText = formatRupiah(totalCartValue);
+        }
+
+        function clearCart() { 
+            cart = []; 
+            document.getElementById('posBuyer').value = ''; 
+            renderCart(); 
+        }
+
+        // --- CHECKOUT & PRINT ---
+        function openCheckoutModal() {
+            if(!cart.length) return alert("Keranjang Kosong!");
+            document.getElementById('coTotalTagihan').innerText = formatRupiah(totalCartValue);
+            document.getElementById('coUangDiterima').value = totalCartValue;
+            document.getElementById('checkoutModal').classList.remove('hidden');
+            hitungKembalian();
+        }
+
+        function toggleKembalian() {
+            document.getElementById('cashArea').style.display = document.getElementById('coMethod').value === 'Cash' ? 'block' : 'none';
+        }
+
+        function hitungKembalian() {
+            let u = parseInt(document.getElementById('coUangDiterima').value) || 0;
+            let k = u - totalCartValue;
+            document.getElementById('coKembalian').innerText = k >= 0 ? formatRupiah(k) : "Uang Kurang!";
+        }
+
+        async function submitCheckout() {
+            let method = document.getElementById('coMethod').value;
+            let uang = method === 'Cash' ? parseInt(document.getElementById('coUangDiterima').value)||0 : totalCartValue;
+            let change = uang - totalCartValue;
+            if(method === 'Cash' && change < 0) return alert("Uang pembayaran kurang!");
+
+            document.getElementById('btnSubmitCheckout').innerText = "Memproses...";
+            let detail = JSON.stringify(cart.map(c => `${c.name} (${c.qty}${c.unit})`));
+            let buyer = document.getElementById('coNama').value || 'Pelanggan POS';
+            let wa = document.getElementById('coWa').value || '';
+
+            let res = await apiCall('add_order', {
+                id_user_toko: currentUser.id, nama_pembeli: buyer, total_belanja: totalCartValue, status: 'Selesai',
+                detail_items: detail, metode_pembayaran: method, uang_bayar: uang, kembalian: change, no_wa_pembeli: wa,
+                fonnte_token: currentUser.fonnte_token // lempar token ke backend buat dikirim via WA
+            });
+
+            if(res.success) {
+                // Siapkan data untuk Print Struk
+                document.getElementById('strNamaToko').innerText = currentUser.nama_toko.toUpperCase();
+                document.getElementById('strInfoToko').innerText = "Admin: " + currentUser.username + " | WA: " + currentUser.wa_number;
+                document.getElementById('strOrderId').innerText = res.order_id;
+                document.getElementById('strDate').innerText = new Date().toLocaleString('id-ID');
+                document.getElementById('strKasir').innerText = currentUser.username;
+                document.getElementById('strPelanggan').innerText = buyer;
+                document.getElementById('strTotal').innerText = formatRupiah(totalCartValue);
+                document.getElementById('strMethod').innerText = method;
+                document.getElementById('strTunai').innerText = formatRupiah(uang);
+                document.getElementById('strKembali').innerText = formatRupiah(change);
+                document.getElementById('strItems').innerHTML = cart.map(c => `<div style="display:flex; justify-content:space-between; font-size:11px;"><span>${c.name} (${c.qty})</span><span>${formatRupiah(c.price*c.qty)}</span></div>`).join('');
+                
+                // Panggil Print Dialog bawaan Browser
+                window.print(); 
+                
+                closeModal('checkoutModal'); 
+                clearCart(); 
+                fetchDashboardData();
+                document.getElementById('btnSubmitCheckout').innerHTML = `<i data-lucide="check-circle" class="w-5 h-5 mr-2"></i> Konfirmasi & Cetak Struk`;
+                lucide.createIcons();
+            } else {
+                alert("Gagal memproses pesanan.");
+                document.getElementById('btnSubmitCheckout').innerHTML = `<i data-lucide="check-circle" class="w-5 h-5 mr-2"></i> Konfirmasi & Cetak Struk`;
+            }
+        }
+
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+        // Start App
+        if (currentUser) {
+            initApp();
+        } else {
+            // Tampilan fallback jika tidak ada user dan redirect dicegah
+            document.body.innerHTML = '<div class="flex flex-col items-center justify-center h-screen w-full bg-slate-50"><h2 class="text-2xl font-bold text-slate-800 mb-2">Akses Ditolak</h2><p class="text-slate-500 mb-4">Anda belum login atau sesi telah habis.</p><a href="login.html" class="px-4 py-2 bg-emerald-500 text-white rounded-lg">Ke Halaman Login</a></div>';
+        }
+    </script>
+</body>
+</html>

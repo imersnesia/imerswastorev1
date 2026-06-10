@@ -650,7 +650,7 @@
             const container = document.getElementById('mitraContainer');
             try {
                 let fd = new FormData();
-                fd.append('action', 'get_public_stores'); // Endpoint baru yang akan ditambahkan ke Code.gs
+                fd.append('action', 'get_public_stores'); 
                 
                 const response = await fetch(scriptURL, { method: 'POST', body: fd });
                 const res = await response.json();

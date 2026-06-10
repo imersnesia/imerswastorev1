@@ -13,6 +13,7 @@
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .hidden-view { display: none !important; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased overflow-hidden flex h-screen">
@@ -506,7 +507,8 @@
             }
 
             document.getElementById('btnLihatToko').onclick = () => {
-                window.open('https://toko.imerswastore.com/' + currentUser.slug_toko, '_blank');
+                // Dinamis sesuai domain instalasi/hosting saat ini
+                window.open(window.location.origin + '/' + currentUser.slug_toko, '_blank');
             };
 
             // Setup Navigation Menu (Role Based)

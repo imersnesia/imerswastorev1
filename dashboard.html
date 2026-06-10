@@ -54,18 +54,18 @@
 
     <!-- Sidebar -->
     <aside class="w-64 bg-white border-r border-slate-200 flex flex-col h-full z-20 transition-all shrink-0">
-        <!-- Logo -->
+        <!-- Logo Brand Dinamis -->
         <div class="h-16 flex items-center px-6 border-b border-slate-100 cursor-pointer" onclick="window.location.href='index.html'">
-            <div class="bg-emerald-500 text-white p-1.5 rounded-lg mr-2">
+            <div id="sidebarBrandLogo" class="w-8 h-8 bg-emerald-500 text-white p-1.5 rounded-lg mr-2 flex items-center justify-center overflow-hidden shrink-0">
                 <i data-lucide="store" class="w-5 h-5"></i>
             </div>
-            <span class="font-bold text-xl tracking-tight">iMers<span class="text-emerald-500">WA</span></span>
+            <span id="sidebarBrandName" class="font-bold text-lg tracking-tight truncate">iMers<span class="text-emerald-500">WA</span></span>
         </div>
 
         <!-- User Info -->
         <div class="p-5 border-b border-slate-100">
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm uppercase overflow-hidden" id="uiAvatar">
+                <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm uppercase overflow-hidden shrink-0" id="uiAvatar">
                     <!-- Diisi oleh JS -->
                 </div>
                 <div class="overflow-hidden">
@@ -482,14 +482,27 @@
         function initApp() {
             if (!currentUser) return; // Mencegah error jika belum login
             
-            // Header Info
+            // Header Info & Sidebar Brand (Dinamis sesuai profil toko user)
             document.getElementById('headerDate').innerText = new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
             document.getElementById('uiTokoName').innerText = currentUser.nama_toko || 'Nama Toko';
             document.getElementById('uiUsername').innerText = '@' + currentUser.username;
             document.getElementById('welcomeName').innerText = currentUser.username;
             document.getElementById('uiRoleBadge').innerText = currentUser.role;
 
-            // Atur Avatar/Logo
+            // Set Brand Info di pojok kiri atas
+            const sidebarBrandNameEl = document.getElementById('sidebarBrandName');
+            const sidebarBrandLogoEl = document.getElementById('sidebarBrandLogo');
+            sidebarBrandNameEl.innerText = currentUser.nama_toko || 'iMersWAstore';
+
+            if (currentUser.logo && currentUser.logo !== '') {
+                sidebarBrandLogoEl.innerHTML = `<img src="${currentUser.logo}" class="w-full h-full object-cover">`;
+                sidebarBrandLogoEl.classList.remove('p-1.5', 'bg-emerald-500'); 
+            } else {
+                sidebarBrandLogoEl.innerHTML = `<i data-lucide="store" class="w-5 h-5 text-white"></i>`;
+                sidebarBrandLogoEl.classList.add('p-1.5', 'bg-emerald-500');
+            }
+
+            // Atur Avatar Info
             const avatarEl = document.getElementById('uiAvatar');
             if (currentUser.logo && currentUser.logo !== '') {
                 avatarEl.innerHTML = `<img src="${currentUser.logo}" class="w-full h-full object-cover">`;

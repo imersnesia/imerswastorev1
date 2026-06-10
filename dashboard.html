@@ -13,7 +13,6 @@
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .hidden-view { display: none !important; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased overflow-hidden flex h-screen">
@@ -26,7 +25,7 @@
             if (!userSession) {
                 // Cegah error redirect di environment blob/iframe (seperti Canvas preview)
                 if (window.location.protocol !== 'blob:' && window.location.protocol !== 'data:' && window.self === window.top) {
-                    window.location.href = 'login.html';
+                    window.location.replace('login.html');
                 } else {
                     console.warn("Sesi tidak ditemukan. Menggunakan data mock admin untuk keperluan preview.");
                     currentUser = {
@@ -48,7 +47,7 @@
             console.error("Error cek sesi:", e);
         }
 
-        // URL Web App Google Apps Script lo (SAMA KAN DENGAN YANG DI INDEX.HTML)
+        // URL Web App Google Apps Script lo
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwKbN_R8gdRG5_jLniXD0LXZSMTUiU8gO5Ae-s3FAnfxV7gpaRstdovRiJbS_izuZeQpw/exec';
     </script>
 
@@ -544,10 +543,14 @@
         }
 
         function switchView(viewId) {
-            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden-view'));
+            // Sembunyikan semua section view menggunakan class 'hidden'
+            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+            
+            // Tampilkan view yang dituju
             const target = document.getElementById('view-' + viewId);
-            if(target) target.classList.remove('hidden-view');
+            if(target) target.classList.remove('hidden');
 
+            // Atur status aktif pada menu sidebar
             document.querySelectorAll('.menu-item').forEach(el => {
                 el.classList.remove('bg-emerald-50', 'text-emerald-600');
                 el.classList.add('text-slate-600');

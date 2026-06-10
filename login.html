@@ -27,14 +27,15 @@
     <!-- Container Utama -->
     <div class="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden relative">
         
-        <!-- Tombol Kembali ke Landing Page -->
-        <a href="index.html" onclick="window.location.href='index.html'; return false;" class="absolute top-4 left-4 text-slate-400 hover:text-slate-600 flex items-center gap-1 text-sm font-medium transition-colors cursor-pointer">
-            <i data-lucide="arrow-left" class="w-4 h-4"></i> Beranda
+        <!-- Tombol Kembali ke Landing Page / Toko -->
+        <a id="backBtn" href="index.html" onclick="window.location.href='index.html'; return false;" class="absolute top-4 left-4 text-slate-400 hover:text-slate-600 flex items-center gap-1 text-sm font-medium transition-colors cursor-pointer z-10">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i> <span id="backBtnText">Beranda</span>
         </a>
 
         <div class="p-8 pt-12">
             <div class="text-center mb-8">
-                <div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4">
+                <!-- Kontainer Logo Dinamis -->
+                <div id="brandLogoContainer" class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4 overflow-hidden">
                     <i data-lucide="store" class="w-6 h-6"></i>
                 </div>
                 <h2 class="text-2xl font-bold text-slate-900" id="formTitle">Masuk ke Akun</h2>
@@ -89,11 +90,11 @@
         
         <!-- Footer Form & Bantuan Navigasi -->
         <div class="bg-slate-50 border-t border-slate-100 p-5 text-center space-y-3">
-            <div>
+            <div id="footerRegister">
                 <p class="text-xs text-slate-500 mb-1">Belum punya toko?</p>
                 <a href="index.html" onclick="window.location.href='index.html'; return false;" class="text-sm font-bold text-emerald-600 hover:text-emerald-700 cursor-pointer">Daftar Gratis Sekarang</a>
             </div>
-            <div class="pt-3 border-t border-slate-200">
+            <div class="pt-3 border-t border-slate-200" id="demoAccounts">
                 <p class="text-[11px] text-slate-400">Demo Login: <b>admin/admin123</b> | <b>agency1/agency123</b> | <b>user1/user123</b></p>
             </div>
         </div>
@@ -105,7 +106,58 @@
         // URL Web App Google Apps Script lo
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwKbN_R8gdRG5_jLniXD0LXZSMTUiU8gO5Ae-s3FAnfxV7gpaRstdovRiJbS_izuZeQpw/exec';
 
+        // ==========================================
+        // FITUR SMART LOGIN (Bunglon sesuai Toko)
+        // ==========================================
+        function loadStoreBranding() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const storeSlug = urlParams.get('t');
+
+            if (storeSlug) {
+                // Ubah tombol back mengarah ke halaman etalase toko
+                const backBtn = document.getElementById('backBtn');
+                backBtn.href = `toko.html?t=${storeSlug}`;
+                backBtn.setAttribute('onclick', `window.location.href='toko.html?t=${storeSlug}'; return false;`);
+                document.getElementById('backBtnText').innerText = "Toko";
+
+                // Ambil data dari backend untuk menyesuaikan Logo & Nama
+                let fd = new FormData();
+                fd.append('action', 'get_public_stores');
+                
+                fetch(SCRIPT_URL, { method: 'POST', body: fd })
+                    .then(res => res.json())
+                    .then(res => {
+                        if (res.success) {
+                            const store = res.data.find(s => s.slug === storeSlug);
+                            if (store) {
+                                // Ganti Nama & Subtitle
+                                document.getElementById('formTitle').innerText = `Masuk ke ${store.nama}`;
+                                document.getElementById('formSubtitle').innerText = "Silakan login ke panel admin Anda";
+                                
+                                // Ganti Logo
+                                if (store.logo) {
+                                    const logoContainer = document.getElementById('brandLogoContainer');
+                                    logoContainer.innerHTML = `<img src="${store.logo}" class="w-full h-full object-cover">`;
+                                    logoContainer.classList.remove('bg-emerald-100', 'text-emerald-600');
+                                    logoContainer.classList.add('bg-white', 'border', 'border-slate-200');
+                                }
+
+                                // Sembunyikan bagian daftar & demo akun agar terlihat seperti web mandiri
+                                document.getElementById('footerRegister').classList.add('hidden');
+                                document.getElementById('demoAccounts').classList.add('hidden');
+                            }
+                        }
+                    })
+                    .catch(err => console.error("Gagal memuat branding toko:", err));
+            }
+        }
+        
+        // Panggil saat halaman dimuat
+        document.addEventListener('DOMContentLoaded', loadStoreBranding);
+
+        // ==========================================
         // Toggle Form Login vs Lupa Password
+        // ==========================================
         function toggleForm(type) {
             const loginForm = document.getElementById('loginForm');
             const forgotForm = document.getElementById('forgotForm');
@@ -115,6 +167,9 @@
             
             alertBox.classList.add('hidden'); // Sembunyikan alert saat ganti form
             
+            const urlParams = new URLSearchParams(window.location.search);
+            const isStoreLogin = urlParams.has('t');
+            
             if (type === 'forgot') {
                 loginForm.classList.add('hidden');
                 forgotForm.classList.remove('hidden');
@@ -123,8 +178,12 @@
             } else {
                 forgotForm.classList.add('hidden');
                 loginForm.classList.remove('hidden');
-                formTitle.innerText = "Masuk ke Akun";
-                formSubtitle.innerText = "Silakan masuk ke panel iMersWAstore Anda";
+                if (isStoreLogin) {
+                    loadStoreBranding(); // Panggil ulang untuk mengembalikan teks branding dinamis
+                } else {
+                    formTitle.innerText = "Masuk ke Akun";
+                    formSubtitle.innerText = "Silakan masuk ke panel iMersWAstore Anda";
+                }
             }
         }
 
